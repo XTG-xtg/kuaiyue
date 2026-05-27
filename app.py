@@ -2,12 +2,12 @@
 """
 快阅 — ComfyUI图片浏览筛选工具
 """
-import os, json, glob, argparse, shutil, io, zipfile, time
+import os, json, shutil, io, zipfile
 from pathlib import Path
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import (Flask, render_template, send_from_directory, request,
-                   jsonify, session, send_file, redirect, url_for)
+                   jsonify, session, send_file)
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
@@ -17,21 +17,31 @@ app.permanent_session_lifetime = timedelta(days=30)
 IMAGE_DIR = ""
 TRASH_DIR = ""
 USERS_FILE = ""
+GROUPS_FILE = ""
+LOGIN_LOG_FILE = ""
+
+# ── 工具 ──────────────────────────────────────────────────
+
+def load_json(path, default=None):
+    if not Path(path).exists():
+        if default is not None:
+            save_json(path, default)
+        return default or {}
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+def save_json(path, data):
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 # ── 用户管理 ──────────────────────────────────────────────
 
 def load_users():
-    if not Path(USERS_FILE).exists():
-        default = {"admin": {"password": generate_password_hash("admin123"), "role": "admin"}}
-        with open(USERS_FILE, "w") as f:
-            json.dump(default, f, indent=2)
-        return default
-    with open(USERS_FILE) as f:
-        return json.load(f)
+    default = {"admin": {"password": generate_password_hash("admin123"), "role": "admin"}}
+    return load_json(USERS_FILE, default)
 
 def save_users(users):
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
+    save_json(USERS_FILE, users)
 
 def get_current_user():
     return session.get("user")
@@ -55,19 +65,30 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated
 
+def log_login(username):
+    """记录登录历史"""
+    logs = load_json(LOGIN_LOG_FILE, [])
+    logs.insert(0, {
+        "user": username,
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "ip": request.remote_addr or "unknown"
+    })
+    # 只保留最近100条
+    save_json(LOGIN_LOG_FILE, logs[:100])
+
 # ── 图片管理 ──────────────────────────────────────────────
 
+EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+
 def get_images(directory, prefix=None):
-    exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
     images = []
     for f in Path(directory).iterdir():
-        if f.suffix.lower() in exts:
+        if f.suffix.lower() in EXTS:
             if prefix and not f.name.startswith(prefix):
                 continue
             stat = f.stat()
             images.append({
                 "name": f.name,
-                "path": str(f),
                 "size": stat.st_size,
                 "size_mb": round(stat.st_size / 1024 / 1024, 2),
                 "mtime": stat.st_mtime,
@@ -77,10 +98,9 @@ def get_images(directory, prefix=None):
     return images
 
 def get_prefixes(directory):
-    exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
     prefixes = set()
     for f in Path(directory).iterdir():
-        if f.suffix.lower() in exts:
+        if f.suffix.lower() in EXTS:
             name = f.stem
             for i, c in enumerate(name):
                 if c.isdigit():
@@ -105,13 +125,12 @@ def api_login():
     password = data.get("password", "")
     users = load_users()
 
-    if username not in users:
-        return jsonify({"error": "用户名或密码错误"}), 401
-    if not check_password_hash(users[username]["password"], password):
+    if username not in users or not check_password_hash(users[username]["password"], password):
         return jsonify({"error": "用户名或密码错误"}), 401
 
     session.permanent = True
     session["user"] = {"name": username, "role": users[username]["role"]}
+    log_login(username)
     return jsonify({"ok": True, "user": session["user"]})
 
 @app.route("/api/logout", methods=["POST"])
@@ -166,7 +185,6 @@ def api_delete_user(username):
 @login_required
 def api_change_password(username):
     user = get_current_user()
-    # 只能改自己的密码，或者管理员改任何人的
     if user["name"] != username and user["role"] != "admin":
         return jsonify({"error": "无权操作"}), 403
     data = request.json
@@ -180,6 +198,15 @@ def api_change_password(username):
     save_users(users)
     return jsonify({"ok": True})
 
+@app.route("/api/login-log")
+@login_required
+def api_login_log():
+    user = get_current_user()
+    logs = load_json(LOGIN_LOG_FILE, [])
+    if user["role"] != "admin":
+        logs = [l for l in logs if l["user"] == user["name"]]
+    return jsonify({"logs": logs[:20]})
+
 # ── 图片接口 ──────────────────────────────────────────────
 
 @app.route("/api/images")
@@ -188,7 +215,7 @@ def api_images():
     prefix = request.args.get("prefix", "")
     images = get_images(IMAGE_DIR, prefix if prefix else None)
     prefixes = get_prefixes(IMAGE_DIR)
-    return jsonify({"images": images, "prefixes": prefixes, "dir": IMAGE_DIR})
+    return jsonify({"images": images, "prefixes": prefixes})
 
 @app.route("/api/delete", methods=["POST"])
 @admin_required
@@ -198,8 +225,7 @@ def api_delete():
     if not files:
         return jsonify({"error": "没有选择文件"}), 400
     os.makedirs(TRASH_DIR, exist_ok=True)
-    deleted = []
-    errors = []
+    deleted, errors = [], []
     for fname in files:
         src = Path(IMAGE_DIR) / fname
         dst = Path(TRASH_DIR) / fname
@@ -211,7 +237,7 @@ def api_delete():
                 errors.append(f"{fname}: {e}")
         else:
             errors.append(f"{fname}: 文件不存在")
-    return jsonify({"deleted": deleted, "errors": errors, "trash": TRASH_DIR})
+    return jsonify({"deleted": deleted, "errors": errors})
 
 @app.route("/api/restore", methods=["POST"])
 @admin_required
@@ -227,14 +253,37 @@ def api_restore():
             restored.append(fname)
     return jsonify({"restored": restored})
 
-@app.route("/api/trash")
-@admin_required
-def api_trash():
-    if not Path(TRASH_DIR).exists():
-        return jsonify({"files": []})
-    exts = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
-    files = [f.name for f in Path(TRASH_DIR).iterdir() if f.suffix.lower() in exts]
-    return jsonify({"files": sorted(files), "dir": TRASH_DIR})
+# ── 分组 ──────────────────────────────────────────────────
+
+@app.route("/api/groups")
+@login_required
+def api_groups():
+    groups_meta = load_json(GROUPS_FILE, {})
+    exts = EXTS
+    result = []
+    for prefix, meta in groups_meta.items():
+        files = sorted([f.name for f in Path(IMAGE_DIR).iterdir()
+                        if f.suffix.lower() in exts and f.name.startswith(prefix)])
+        if not files:
+            continue
+        result.append({
+            "prefix": prefix,
+            "name": meta.get("name", prefix),
+            "source": meta.get("source", ""),
+            "description": meta.get("description", ""),
+            "preview": files[0],
+            "count": len(files),
+        })
+    result.sort(key=lambda x: x["count"], reverse=True)
+    return jsonify({"groups": result})
+
+@app.route("/api/group/<prefix>")
+@login_required
+def api_group_detail(prefix):
+    groups_meta = load_json(GROUPS_FILE, {})
+    meta = groups_meta.get(prefix, {"name": prefix, "source": "", "description": ""})
+    images = get_images(IMAGE_DIR, prefix)
+    return jsonify({"prefix": prefix, "meta": meta, "images": images})
 
 # ── 下载 ──────────────────────────────────────────────────
 
@@ -258,7 +307,6 @@ def api_download_batch():
     files = data.get("files", [])
     if not files:
         return jsonify({"error": "没有选择文件"}), 400
-
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
         for fname in files:
@@ -266,7 +314,6 @@ def api_download_batch():
             if fpath.exists():
                 zf.write(str(fpath), fname)
     buf.seek(0)
-
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return send_file(buf, mimetype="application/zip",
                      as_attachment=True,
@@ -275,30 +322,33 @@ def api_download_batch():
 # ── 启动 ──────────────────────────────────────────────────
 
 def main():
-    global IMAGE_DIR, TRASH_DIR, USERS_FILE
+    global IMAGE_DIR, TRASH_DIR, USERS_FILE, GROUPS_FILE, LOGIN_LOG_FILE
+
+    import argparse
     parser = argparse.ArgumentParser(description="快阅 — 图片浏览筛选工具")
-    parser.add_argument("--dir", default="/home/xtg/.hermes/cache/generated", help="图片目录")
-    parser.add_argument("--port", type=int, default=8899, help="端口")
-    parser.add_argument("--host", default="0.0.0.0", help="监听地址")
+    parser.add_argument("--dir", default="/home/xtg/.hermes/cache/generated")
+    parser.add_argument("--port", type=int, default=8899)
+    parser.add_argument("--host", default="0.0.0.0")
     args = parser.parse_args()
 
+    base = os.path.dirname(os.path.abspath(__file__))
     IMAGE_DIR = os.path.abspath(args.dir)
     TRASH_DIR = os.path.join(IMAGE_DIR, ".trash")
-    USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "users.json")
+    USERS_FILE = os.path.join(base, "users.json")
+    GROUPS_FILE = os.path.join(base, "groups.json")
+    LOGIN_LOG_FILE = os.path.join(base, "login_log.json")
 
     if not Path(IMAGE_DIR).exists():
         print(f"✗ 目录不存在: {IMAGE_DIR}")
         return
 
-    # 确保默认用户存在
     load_users()
 
-    count = len(list(Path(IMAGE_DIR).glob("*.png"))) + len(list(Path(IMAGE_DIR).glob("*.jpg")))
+    count = sum(1 for f in Path(IMAGE_DIR).iterdir() if f.suffix.lower() in EXTS)
     print(f"快阅")
     print(f"  目录: {IMAGE_DIR}")
     print(f"  图片: {count}张")
     print(f"  地址: http://localhost:{args.port}")
-    print(f"  默认管理员: admin / admin123")
 
     app.run(host=args.host, port=args.port, debug=False)
 

@@ -1,0 +1,205 @@
+{
+  "firefly_": {
+    "name": "流萤",
+    "source": "崩坏：星穹铁道",
+    "description": "星核猎手成员，温柔而坚强的少女",
+    "count": 40,
+    "preview": "firefly_01_晨光卧室.png"
+  },
+  "firefly_atmo_": {
+    "name": "流萤·氛围",
+    "source": "崩坏：星穹铁道",
+    "description": "流萤氛围光影特辑",
+    "count": 10,
+    "preview": "firefly_atmo_01.png"
+  },
+  "firefly_light_": {
+    "name": "流萤·光影",
+    "source": "崩坏：星穹铁道",
+    "description": "流萤温暖光影风格",
+    "count": 10,
+    "preview": "firefly_light_01.png"
+  },
+  "firefly_nsfw_": {
+    "name": "流萤·擦边",
+    "source": "崩坏：星穹铁道",
+    "description": "流萤暧昧擦边风格",
+    "count": 10,
+    "preview": "firefly_nsfw_01.png"
+  },
+  "furina_": {
+    "name": "芙宁娜",
+    "source": "原神",
+    "description": "枫丹水之神，戏剧女王",
+    "count": 10,
+    "preview": "furina_01.png"
+  },
+  "ganyu_": {
+    "name": "甘雨",
+    "source": "原神",
+    "description": "璃月七星秘书，半仙麒麟",
+    "count": 10,
+    "preview": "ganyu_01.png"
+  },
+  "hatsune_miku_": {
+    "name": "初音未来",
+    "source": "VOCALOID",
+    "description": "虚拟歌姬，世界第一公主殿下",
+    "count": 10,
+    "preview": "hatsune_miku_01.png"
+  },
+  "hsr_acheron_": {
+    "name": "花火",
+    "source": "崩坏：星穹铁道",
+    "description": "星核猎手，神秘的占卜师",
+    "count": 2,
+    "preview": "hsr_acheron_01.png"
+  },
+  "hsr_black swan_": {
+    "name": "黑天鹅",
+    "source": "崩坏：星穹铁道",
+    "description": "记忆之主，优雅的命运编织者",
+    "count": 2,
+    "preview": "hsr_black swan_01.png"
+  },
+  "hsr_bronya_": {
+    "name": "布洛妮娅",
+    "source": "崩坏：星穹铁道",
+    "description": "贝洛伯格大守护者",
+    "count": 2,
+    "preview": "hsr_bronya_01.png"
+  },
+  "hsr_fu xuan_": {
+    "name": "符玄",
+    "source": "崩坏：星穹铁道",
+    "description": "太卜司司命，知晓天命",
+    "count": 2,
+    "preview": "hsr_fu xuan_01.png"
+  },
+  "hsr_himeko_": {
+    "name": "姬子",
+    "source": "崩坏：星穹铁道",
+    "description": "星穹列车开拓者，优雅知性",
+    "count": 2,
+    "preview": "hsr_himeko_01.png"
+  },
+  "hsr_huohuo_": {
+    "name": "藿藿",
+    "source": "崩坏：星穹铁道",
+    "description": "地衡司判官，胆小可爱的尾巴灵",
+    "count": 2,
+    "preview": "hsr_huohuo_01.png"
+  },
+  "hsr_jingliu_": {
+    "name": "镜流",
+    "source": "崩坏：星穹铁道",
+    "description": "云骑将军，剑术通神",
+    "count": 2,
+    "preview": "hsr_jingliu_01.png"
+  },
+  "hsr_robin_": {
+    "name": "知更鸟",
+    "source": "崩坏：星穹铁道",
+    "description": "星际和平公司歌手，温柔歌姬",
+    "count": 2,
+    "preview": "hsr_robin_01.png"
+  },
+  "hsr_silver wolf_": {
+    "name": "银狼",
+    "source": "崩坏：星穹铁道",
+    "description": "星核猎手黑客，游戏宅少女",
+    "count": 2,
+    "preview": "hsr_silver wolf_01.png"
+  },
+  "hsr_sparkle_": {
+    "name": "花火",
+    "source": "崩坏：星穹铁道",
+    "description": "假面愚者，戏谑的命运舞者",
+    "count": 2,
+    "preview": "hsr_sparkle_01.png"
+  },
+  "hu_tao_": {
+    "name": "胡桃",
+    "source": "原神",
+    "description": "往生堂第七十七代堂主，古灵精怪",
+    "count": 10,
+    "preview": "hu_tao_01.png"
+  },
+  "huohuo_": {
+    "name": "藿藿",
+    "source": "崩坏：星穹铁道",
+    "description": "地衡司判官，胆小可爱的尾巴灵",
+    "count": 9,
+    "preview": "huohuo_01.png"
+  },
+  "kafka_": {
+    "name": "卡芙卡",
+    "source": "崩坏：星穹铁道",
+    "description": "星核猎手，魅惑的支配者",
+    "count": 10,
+    "preview": "kafka_01.png"
+  },
+  "nahida_": {
+    "name": "纳西妲",
+    "source": "原神",
+    "description": "须弥草神，智慧之神",
+    "count": 20,
+    "preview": "nahida_01.png"
+  },
+  "nahida_b_": {
+    "name": "纳西妲·B",
+    "source": "原神",
+    "description": "纳西妲第二风格特辑",
+    "count": 10,
+    "preview": "nahida_b_01.png"
+  },
+  "nezuko_": {
+    "name": "祢豆子",
+    "source": "鬼灭之刃",
+    "description": "灶门炭治郎的妹妹，鬼化少女",
+    "count": 10,
+    "preview": "nezuko_01.png"
+  },
+  "raiden_shogun_": {
+    "name": "雷电将军",
+    "source": "原神",
+    "description": "稻妻雷神，永恒的追求者",
+    "count": 10,
+    "preview": "raiden_shogun_01.png"
+  },
+  "rem_": {
+    "name": "蕾姆",
+    "source": "Re:Zero",
+    "description": "罗兹瓦尔宅邸女仆，蓝发鬼族",
+    "count": 10,
+    "preview": "rem_01.png"
+  },
+  "test_strength_": {
+    "name": "测试·强度",
+    "source": "测试",
+    "description": "LoRA强度测试图",
+    "count": 10,
+    "preview": "test_strength_1.png"
+  },
+  "tohsaka_rin_": {
+    "name": "远坂凛",
+    "source": "Fate",
+    "description": "冬木市魔术世家之女，傲娇大小姐",
+    "count": 10,
+    "preview": "tohsaka_rin_01.png"
+  },
+  "ComfyUI_": {
+    "name": "ComfyUI原始",
+    "source": "混合",
+    "description": "ComfyUI默认命名的原始生成图",
+    "count": 156,
+    "preview": "ComfyUI_00134_.png"
+  },
+  "gen_": {
+    "name": "快速生成",
+    "source": "混合",
+    "description": "快速生成测试图",
+    "count": 9,
+    "preview": "gen_1779394975277.png"
+  }
+}

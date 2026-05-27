@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .trash/
 users.json
+login_log.json
