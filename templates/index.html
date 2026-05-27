@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>快阅</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🖼️</text></svg>">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+:root { --gap: 4px; --cols: 3; --accent: #4a9eff; --danger: #ff6b6b; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif; background: #0a0a0a; color: #e0e0e0; min-height: 100vh; min-height: 100dvh; overflow-x: hidden; }
+
+/* 登录页 */
+.login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; min-height: 100dvh; padding: 20px; }
+.login-box { background: #151515; border: 1px solid #2a2a2a; border-radius: 16px; padding: 36px 28px; width: 100%; max-width: 360px; }
+.login-box h1 { font-size: 24px; text-align: center; margin-bottom: 8px; }
+.login-box .sub { text-align: center; color: #666; font-size: 13px; margin-bottom: 24px; }
+.login-box input { width: 100%; background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; padding: 12px 14px; border-radius: 10px; font-size: 14px; margin-bottom: 12px; outline: none; }
+.login-box input:focus { border-color: var(--accent); }
+.login-box .error { color: var(--danger); font-size: 12px; text-align: center; margin-bottom: 8px; display: none; }
+.login-box button { width: 100%; background: var(--accent); border: none; color: #fff; padding: 12px; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
+.login-box button:active { opacity: 0.8; }
+
+/* 工具栏 */
+.toolbar { position: sticky; top: 0; z-index: 100; background: rgba(18,18,18,0.97); backdrop-filter: blur(12px); border-bottom: 1px solid #222; padding: 8px 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.toolbar .row1 { display: flex; align-items: center; gap: 6px; width: 100%; }
+.toolbar .row2 { display: flex; align-items: center; gap: 6px; width: 100%; }
+.toolbar h1 { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; }
+.toolbar select { flex: 1; min-width: 0; background: #1a1a1a; border: 1px solid #333; color: #e0e0e0; padding: 7px 10px; border-radius: 8px; font-size: 13px; -webkit-appearance: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6' fill='%23888'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 26px; }
+.toolbar .count { color: #666; font-size: 12px; white-space: nowrap; margin-left: auto; }
+.toolbar .sel-count { color: var(--accent); font-weight: 600; }
+.user-badge { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: #888; }
+.user-badge .role { background: #222; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+.user-badge .role.admin { color: #ff9; background: #332; }
+.user-badge .logout { cursor: pointer; color: #666; }
+.user-badge .logout:hover { color: var(--danger); }
+
+/* 按钮 */
+.btn { display: inline-flex; align-items: center; justify-content: center; padding: 7px 12px; border-radius: 8px; font-size: 12px; font-weight: 500; border: 1px solid #333; background: #1a1a1a; color: #ccc; cursor: pointer; white-space: nowrap; gap: 4px; transition: all 0.12s; min-height: 34px; }
+.btn:active { transform: scale(0.95); }
+.btn-blue { background: #1a2d4a; border-color: #2a5a9a; color: var(--accent); }
+.btn-red { background: #2a1515; border-color: #5a2020; color: var(--danger); }
+.btn-green { background: #152a1a; border-color: #205a2a; color: #6bff8b; }
+
+/* 网格 */
+.grid { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: var(--gap); padding: var(--gap); }
+.card { position: relative; overflow: hidden; background: #111; cursor: pointer; border: 2px solid transparent; transition: border-color 0.12s, opacity 0.12s; -webkit-user-select: none; user-select: none; }
+.card.selected { border-color: var(--accent); }
+.card.selected img { opacity: 0.8; }
+.card img { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; pointer-events: none; }
+.card .check { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,0,0,0.45); border: 2px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; transition: all 0.12s; font-size: 12px; opacity: 0; }
+.card.selected .check, .card.show-check .check { opacity: 1; }
+.card.selected .check { background: var(--accent); border-color: var(--accent); }
+.card.selected .check::after { content: "✓"; color: #fff; font-weight: 700; }
+.card .info { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.7)); padding: 20px 6px 5px; font-size: 9px; color: #999; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
+.card .info .name { color: #ccc; font-size: 10px; }
+
+/* 预览模态 */
+.modal { display: none; position: fixed; inset: 0; z-index: 200; background: #000; flex-direction: column; }
+.modal.active { display: flex; }
+.modal .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(0,0,0,0.8); position: absolute; top: 0; left: 0; right: 0; z-index: 10; padding-top: max(10px, env(safe-area-inset-top)); }
+.modal .topbar .name { font-size: 12px; color: #aaa; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.modal .topbar .counter { font-size: 11px; color: #666; margin-left: 8px; white-space: nowrap; }
+.modal .close-btn { width: 36px; height: 36px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; margin-right: 8px; flex-shrink: 0; }
+.modal .img-wrap { flex: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; position: relative; padding-top: max(44px, calc(env(safe-area-inset-top) + 34px)); padding-bottom: max(60px, calc(env(safe-area-inset-bottom) + 50px)); }
+.modal .img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; touch-action: none; }
+.modal .bottom-actions { position: absolute; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 16px; padding-bottom: max(10px, env(safe-area-inset-bottom)); background: linear-gradient(transparent, rgba(0,0,0,0.85)); z-index: 10; }
+.modal .bottom-actions .btn { min-height: 40px; padding: 8px 16px; font-size: 13px; }
+
+.empty { text-align: center; padding: 80px 20px; color: #444; }
+.empty h2 { font-size: 18px; margin-bottom: 6px; }
+
+.bottombar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 100; background: rgba(18,18,18,0.97); backdrop-filter: blur(12px); border-top: 1px solid #222; padding: 8px 14px; padding-bottom: max(8px, env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 10px; transform: translateY(100%); transition: transform 0.2s; }
+.bottombar.active { transform: translateY(0); }
+.bottombar .info { font-size: 13px; color: #888; flex: 1; }
+.bottombar .info strong { color: var(--accent); }
+
+@media (min-width: 768px) {
+  :root { --cols: 5; --gap: 8px; }
+  .toolbar { padding: 10px 20px; gap: 10px; }
+  .toolbar .row1, .toolbar .row2 { width: auto; flex: unset; }
+  .toolbar h1 { font-size: 18px; }
+  .grid { padding: 12px; }
+  .card .info { opacity: 1; padding: 30px 8px 8px; font-size: 11px; }
+  .card .info .name { font-size: 12px; }
+  .card .check { opacity: 0.6; width: 26px; height: 26px; }
+  .card:hover .check { opacity: 1; }
+  .card:hover { border-color: #333; }
+  .modal .img-wrap img { max-width: 90vw; max-height: 85vh; }
+  .modal .topbar { padding: 12px 20px; }
+}
+@media (min-width: 1200px) { :root { --cols: 6; } }
+@media (min-width: 1600px) { :root { --cols: 8; } }
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-page" id="loginPage">
+  <div class="login-box">
+    <h1>🖼️ 快阅</h1>
+    <div class="sub">ComfyUI 图片审阅工具</div>
+    <div class="error" id="loginError"></div>
+    <input id="loginUser" placeholder="用户名" autocomplete="username">
+    <input id="loginPass" type="password" placeholder="密码" autocomplete="current-password">
+    <button onclick="doLogin()">登 录</button>
+  </div>
+</div>
+
+<!-- 主界面（登录后显示） -->
+<div id="mainApp" style="display:none">
+
+<div class="toolbar">
+  <div class="row1">
+    <h1>🖼️ 快阅</h1>
+    <select id="prefixFilter"><option value="">全部</option></select>
+    <span class="count"><span id="totalCount">0</span>张</span>
+  </div>
+  <div class="row2">
+    <button class="btn btn-blue" onclick="selectAll()">全选</button>
+    <button class="btn" onclick="clearSelection()">取消</button>
+    <button class="btn mode-toggle" onclick="toggleSelectMode()">ℹ️</button>
+    <span class="count">选中 <span class="sel-count" id="selectedCount">0</span></span>
+    <button class="btn btn-red" id="deleteBtn" onclick="deleteSelected()" style="display:none">
+      删除 <span id="delCount">0</span> 张
+    </button>
+    <div class="user-badge">
+      <span id="userName"></span>
+      <span class="role" id="userRole"></span>
+      <span class="logout" onclick="doLogout()" title="退出">✕</span>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="empty" id="empty" style="display:none">
+  <h2>没有图片</h2>
+  <p>当前筛选下没有找到图片</p>
+</div>
+
+<!-- 预览 -->
+<div class="modal" id="modal">
+  <div class="topbar">
+    <button class="close-btn" onclick="closeModal()">✕</button>
+    <span class="name" id="modalName"></span>
+    <span class="counter" id="modalCounter"></span>
+  </div>
+  <div class="img-wrap" id="imgWrap">
+    <img id="modalImg" src="" draggable="false">
+  </div>
+  <div class="bottom-actions">
+    <button class="btn" onclick="navModal(-1)">◀</button>
+    <button class="btn btn-blue" id="modalSelectBtn" onclick="modalToggleSelect()">选中</button>
+    <button class="btn btn-green" onclick="modalDownload()">下载</button>
+    <button class="btn" onclick="navModal(1)">▶</button>
+  </div>
+</div>
+
+<!-- 底栏 -->
+<div class="bottombar" id="bottombar">
+  <span class="info">已选 <strong id="bottomCount">0</strong> 张</span>
+  <button class="btn" onclick="clearSelection()">取消</button>
+  <button class="btn btn-green" onclick="downloadSelected()">下载</button>
+  <button class="btn btn-red" id="bottomDeleteBtn" onclick="deleteSelected()" style="display:none">删除</button>
+</div>
+
+</div><!-- mainApp -->
+
+<script>
+// ── 状态 ──────────────────────────────────────────
+let images = [];
+let selected = new Set();
+let modalIndex = -1;
+let selectMode = false;
+let currentUser = null; // {name, role}
+
+// ── 认证 ──────────────────────────────────────────
+async function checkAuth() {
+  try {
+    const res = await fetch("/api/me");
+    if (res.ok) {
+      const data = await res.json();
+      currentUser = data.user;
+      showApp();
+    } else {
+      showLogin();
+    }
+  } catch { showLogin(); }
+}
+
+function showLogin() {
+  document.getElementById("loginPage").style.display = "flex";
+  document.getElementById("mainApp").style.display = "none";
+}
+
+function showApp() {
+  document.getElementById("loginPage").style.display = "none";
+  document.getElementById("mainApp").style.display = "block";
+  document.getElementById("userName").textContent = currentUser.name;
+  const roleEl = document.getElementById("userRole");
+  roleEl.textContent = currentUser.role === "admin" ? "管理员" : "用户";
+  roleEl.className = "role" + (currentUser.role === "admin" ? " admin" : "");
+
+  // 普通用户隐藏删除按钮
+  const isAdmin = currentUser.role === "admin";
+  document.getElementById("deleteBtn").style.display = "none";
+  document.getElementById("bottomDeleteBtn").style.display = isAdmin ? "inline-flex" : "none";
+
+  loadImages();
+}
+
+async function doLogin() {
+  const username = document.getElementById("loginUser").value.trim();
+  const password = document.getElementById("loginPass").value;
+  const errEl = document.getElementById("loginError");
+
+  if (!username || !password) { errEl.textContent = "请输入用户名和密码"; errEl.style.display = "block"; return; }
+
+  try {
+    const res = await fetch("/api/login", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({username, password})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      currentUser = data.user;
+      errEl.style.display = "none";
+      showApp();
+    } else {
+      errEl.textContent = data.error || "登录失败";
+      errEl.style.display = "block";
+    }
+  } catch(e) {
+    errEl.textContent = "连接失败";
+    errEl.style.display = "block";
+  }
+}
+
+async function doLogout() {
+  await fetch("/api/logout", {method: "POST"});
+  currentUser = null;
+  showLogin();
+}
+
+// Enter 登录
+document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+document.getElementById("loginUser").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("loginPass").focus(); });
+
+// ── 列数自适应 ────────────────────────────────────
+function updateCols() {
+  const w = window.innerWidth;
+  let cols = 3;
+  if (w >= 1600) cols = 8; else if (w >= 1200) cols = 6; else if (w >= 768) cols = 5; else if (w >= 480) cols = 4;
+  document.documentElement.style.setProperty('--cols', cols);
+}
+window.addEventListener('resize', updateCols);
+updateCols();
+
+// ── 加载图片 ──────────────────────────────────────
+async function loadImages(prefix = "") {
+  const res = await fetch(`/api/images?prefix=${encodeURIComponent(prefix)}`);
+  if (res.status === 401) { showLogin(); return; }
+  const data = await res.json();
+  images = data.images;
+
+  const sel = document.getElementById("prefixFilter");
+  const current = sel.value;
+  sel.innerHTML = '<option value="">全部</option>';
+  data.prefixes.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p;
+    opt.textContent = p;
+    if (p === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  renderGrid();
+}
+
+// ── 渲染网格 ──────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById("grid");
+  const empty = document.getElementById("empty");
+  if (images.length === 0) { grid.innerHTML = ""; empty.style.display = "block"; return; }
+  empty.style.display = "none";
+
+  grid.innerHTML = images.map((img, i) => `
+    <div class="card ${selected.has(img.name) ? 'selected' : ''} ${selectMode ? 'show-check' : ''}"
+         data-name="${img.name}"
+         onclick="onCardClick('${img.name}')"
+         ontouchstart="onCardTouchStart(event,'${img.name}')"
+         ontouchmove="onCardTouchMove(event)"
+         ontouchend="onCardTouchEnd(event,'${img.name}')">
+      <img src="/images/${encodeURIComponent(img.name)}" loading="lazy" decoding="async">
+      <div class="check"></div>
+      <div class="info">
+        <div class="name">${img.name}</div>
+        <div>${img.size_mb}MB · ${img.mtime_str}</div>
+      </div>
+    </div>
+  `).join("");
+  updateCounts();
+}
+
+// ── 选择逻辑 ──────────────────────────────────────
+function onCardClick(name) {
+  if (longPressTriggered) { longPressTriggered = false; return; }
+  if (selectMode) toggleSelectByName(name);
+  else openModalByName(name);
+}
+
+let longPressTimer = null, longPressTriggered = false, touchStartX = 0, touchStartY = 0, touchMoved = false;
+function onCardTouchStart(e, name) { longPressTriggered = false; touchMoved = false; touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; longPressTimer = setTimeout(() => { longPressTriggered = true; if (navigator.vibrate) navigator.vibrate(20); if (selectMode) openModalByName(name); else toggleSelectMode(); }, 500); }
+function onCardTouchMove(e) { const dx = Math.abs(e.touches[0].clientX - touchStartX); const dy = Math.abs(e.touches[0].clientY - touchStartY); if (dx > 10 || dy > 10) { touchMoved = true; clearTimeout(longPressTimer); } }
+function onCardTouchEnd(e, name) { clearTimeout(longPressTimer); if (touchMoved) longPressTriggered = false; }
+
+function toggleSelectByName(name) {
+  if (selected.has(name)) selected.delete(name); else selected.add(name);
+  const card = document.querySelector(`[data-name="${name}"]`);
+  if (card) card.classList.toggle("selected", selected.has(name));
+  updateCounts();
+  updateModalSelectBtn();
+}
+
+function selectAll() { images.forEach(img => selected.add(img.name)); document.querySelectorAll(".card").forEach(c => c.classList.add("selected")); updateCounts(); }
+
+function clearSelection() {
+  selected.clear();
+  document.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
+  if (selectMode) toggleSelectMode();
+  updateCounts();
+}
+
+function toggleSelectMode() {
+  selectMode = !selectMode;
+  const btn = document.querySelector('.mode-toggle');
+  if (selectMode) { btn.textContent = '✅'; btn.className = 'btn btn-blue mode-toggle'; document.querySelectorAll('.card').forEach(c => c.classList.add('show-check')); }
+  else { btn.textContent = 'ℹ️'; btn.className = 'btn mode-toggle'; document.querySelectorAll('.card').forEach(c => c.classList.remove('show-check')); }
+}
+
+function updateCounts() {
+  document.getElementById("totalCount").textContent = images.length;
+  document.getElementById("selectedCount").textContent = selected.size;
+  document.getElementById("bottomCount").textContent = selected.size;
+  document.getElementById("delCount").textContent = selected.size;
+
+  const hasSelected = selected.size > 0;
+  const isAdmin = currentUser && currentUser.role === "admin";
+
+  // 管理员：选中时显示删除
+  document.getElementById("deleteBtn").style.display = (hasSelected && isAdmin) ? "inline-flex" : "none";
+  document.getElementById("bottomDeleteBtn").style.display = isAdmin ? "inline-flex" : "none";
+  document.getElementById("bottombar").classList.toggle("active", hasSelected);
+}
+
+function updateModalSelectBtn() {
+  if (modalIndex < 0) return;
+  const name = images[modalIndex].name;
+  const btn = document.getElementById("modalSelectBtn");
+  if (selected.has(name)) { btn.textContent = "✓ 已选中"; btn.className = "btn btn-green"; }
+  else { btn.textContent = "选中"; btn.className = "btn btn-blue"; }
+}
+
+// ── 删除（管理员）──────────────────────────────────
+async function deleteSelected() {
+  if (selected.size === 0 || !currentUser || currentUser.role !== "admin") return;
+  if (!confirm(`确定删除 ${selected.size} 张图片？\n（移到回收站 .trash，可恢复）`)) return;
+
+  const res = await fetch("/api/delete", { method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({files: [...selected]}) });
+  if (res.status === 403) { alert("需要管理员权限"); return; }
+  const data = await res.json();
+  if (data.deleted.length > 0) { selected.clear(); if (selectMode) toggleSelectMode(); loadImages(document.getElementById("prefixFilter").value); }
+  if (data.errors.length > 0) alert(`删除失败: ${data.errors.join(", ")}`);
+}
+
+// ── 预览 ──────────────────────────────────────────
+function openModalByName(name) { const idx = images.findIndex(img => img.name === name); if (idx < 0) return; openModal(idx); }
+
+function openModal(index) {
+  modalIndex = index;
+  const img = images[index];
+  document.getElementById("modalImg").src = `/images/${encodeURIComponent(img.name)}?t=${Date.now()}`;
+  document.getElementById("modalName").textContent = img.name;
+  document.getElementById("modalCounter").textContent = `${index + 1} / ${images.length} · ${img.size_mb}MB`;
+  document.getElementById("modal").classList.add("active");
+  updateModalSelectBtn();
+  document.body.style.overflow = "hidden";
+}
+
+function closeModal() { document.getElementById("modal").classList.remove("active"); document.body.style.overflow = ""; }
+
+function navModal(dir) {
+  modalIndex = (modalIndex + dir + images.length) % images.length;
+  const img = images[modalIndex];
+  document.getElementById("modalImg").src = `/images/${encodeURIComponent(img.name)}?t=${Date.now()}`;
+  document.getElementById("modalName").textContent = img.name;
+  document.getElementById("modalCounter").textContent = `${modalIndex + 1} / ${images.length} · ${img.size_mb}MB`;
+  updateModalSelectBtn();
+}
+
+function modalToggleSelect() { if (modalIndex >= 0) toggleSelectByName(images[modalIndex].name); }
+
+// ── 下载 ──────────────────────────────────────────
+function modalDownload() {
+  if (modalIndex < 0) return;
+  const name = images[modalIndex].name;
+  const a = document.createElement("a");
+  a.href = `/api/download/${encodeURIComponent(name)}`;
+  a.download = name;
+  a.click();
+}
+
+function downloadSelected() {
+  if (selected.size === 0) return;
+  if (selected.size === 1) {
+    // 单张直接下载
+    const name = [...selected][0];
+    const a = document.createElement("a");
+    a.href = `/api/download/${encodeURIComponent(name)}`;
+    a.download = name;
+    a.click();
+  } else {
+    // 多张打包ZIP
+    const form = document.createElement("form");
+    form.method = "POST";
+    form.action = "/api/download-batch";
+    form.style.display = "none";
+
+    // 用 fetch + blob 下载（避免页面跳转）
+    fetch("/api/download-batch", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({files: [...selected]})
+    }).then(r => r.blob()).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `快阅_${selected.size}张.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+}
+
+// ── 模态滑动手势 ──────────────────────────────────
+(function() {
+  const imgWrap = document.getElementById("imgWrap");
+  let startX = 0, startY = 0, moved = false;
+  imgWrap.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; moved = false; }, { passive: true });
+  imgWrap.addEventListener('touchend', (e) => { if (!moved) return; const dx = e.changedTouches[0].clientX - startX; const dy = e.changedTouches[0].clientY - startY; if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) { if (dx > 0) navModal(-1); else navModal(1); } });
+  imgWrap.addEventListener('touchmove', (e) => { const dx = e.touches[0].clientX - startX; const dy = e.touches[0].clientY - startY; if (Math.abs(dx) > 10 || Math.abs(dy) > 10) moved = true; }, { passive: true });
+  imgWrap.addEventListener('click', (e) => { const rect = imgWrap.getBoundingClientRect(); const x = e.clientX - rect.left; if (x < rect.width * 0.3) navModal(-1); else if (x > rect.width * 0.7) navModal(1); });
+})();
+
+// ── 键盘 ──────────────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  const modal = document.getElementById("modal").classList.contains("active");
+  if (e.key === "Escape") { if (modal) closeModal(); else clearSelection(); }
+  else if (modal) { if (e.key === "ArrowLeft") navModal(-1); if (e.key === "ArrowRight") navModal(1); if (e.key === " ") { e.preventDefault(); modalToggleSelect(); } if (e.key === "d" || e.key === "D") modalDownload(); }
+  else { if (e.key === "Delete" || e.key === "Backspace") deleteSelected(); if (e.key === "a" && !e.ctrlKey && !e.metaKey) selectAll(); }
+});
+
+document.getElementById("prefixFilter").addEventListener("change", (e) => { selected.clear(); loadImages(e.target.value); });
+
+// ── 初始化 ────────────────────────────────────────
+checkAuth();
+</script>
+</body>
+</html>
