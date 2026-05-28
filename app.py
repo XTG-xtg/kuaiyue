@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-快阅 — ComfyUI图片浏览筛选工具
+快阅 v2.0 — ComfyUI图片浏览筛选工具
 """
 import os, json, shutil, io, zipfile
 from pathlib import Path
@@ -73,28 +73,50 @@ def log_login(username):
         "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "ip": request.remote_addr or "unknown"
     })
-    # 只保留最近100条
     save_json(LOGIN_LOG_FILE, logs[:100])
 
 # ── 图片管理 ──────────────────────────────────────────────
 
-EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+EXTS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
 
-def get_images(directory, prefix=None):
+def get_file_info(fpath):
+    """获取单个文件的详细信息"""
+    stat = fpath.stat()
+    info = {
+        "name": fpath.name,
+        "size": stat.st_size,
+        "size_mb": round(stat.st_size / 1024 / 1024, 2),
+        "mtime": stat.st_mtime,
+        "mtime_str": datetime.fromtimestamp(stat.st_mtime).strftime("%m-%d %H:%M"),
+        "ext": fpath.suffix.lower(),
+    }
+    # 尝试获取图片尺寸
+    try:
+        from PIL import Image
+        with Image.open(fpath) as img:
+            info["width"], info["height"] = img.size
+    except Exception:
+        info["width"] = info["height"] = 0
+    return info
+
+def get_images(directory, prefix=None, q=None, sort="mtime", order="desc"):
     images = []
     for f in Path(directory).iterdir():
-        if f.suffix.lower() in EXTS:
-            if prefix and not f.name.startswith(prefix):
-                continue
-            stat = f.stat()
-            images.append({
-                "name": f.name,
-                "size": stat.st_size,
-                "size_mb": round(stat.st_size / 1024 / 1024, 2),
-                "mtime": stat.st_mtime,
-                "mtime_str": datetime.fromtimestamp(stat.st_mtime).strftime("%m-%d %H:%M"),
-            })
-    images.sort(key=lambda x: x["mtime"], reverse=True)
+        if f.suffix.lower() not in EXTS:
+            continue
+        if prefix and not f.name.startswith(prefix):
+            continue
+        if q and q.lower() not in f.name.lower():
+            continue
+        images.append(get_file_info(f))
+    # 排序
+    reverse = (order == "desc")
+    if sort == "name":
+        images.sort(key=lambda x: x["name"].lower(), reverse=reverse)
+    elif sort == "size":
+        images.sort(key=lambda x: x["size"], reverse=reverse)
+    else:  # mtime
+        images.sort(key=lambda x: x["mtime"], reverse=reverse)
     return images
 
 def get_prefixes(directory):
@@ -213,7 +235,14 @@ def api_login_log():
 @login_required
 def api_images():
     prefix = request.args.get("prefix", "")
-    images = get_images(IMAGE_DIR, prefix if prefix else None)
+    q = request.args.get("q", "")
+    sort = request.args.get("sort", "mtime")
+    order = request.args.get("order", "desc")
+    if sort not in ("mtime", "name", "size"):
+        sort = "mtime"
+    if order not in ("asc", "desc"):
+        order = "desc"
+    images = get_images(IMAGE_DIR, prefix if prefix else None, q if q else None, sort, order)
     prefixes = get_prefixes(IMAGE_DIR)
     return jsonify({"images": images, "prefixes": prefixes})
 
@@ -229,6 +258,10 @@ def api_delete():
     for fname in files:
         src = Path(IMAGE_DIR) / fname
         dst = Path(TRASH_DIR) / fname
+        # 防止重名覆盖
+        if dst.exists():
+            base, ext = os.path.splitext(fname)
+            dst = Path(TRASH_DIR) / f"{base}_dup{ext}"
         if src.exists():
             try:
                 shutil.move(str(src), str(dst))
@@ -244,14 +277,54 @@ def api_delete():
 def api_restore():
     data = request.json
     files = data.get("files", [])
-    restored = []
+    restored, errors = [], []
     for fname in files:
         src = Path(TRASH_DIR) / fname
         dst = Path(IMAGE_DIR) / fname
         if src.exists():
-            shutil.move(str(src), str(dst))
-            restored.append(fname)
-    return jsonify({"restored": restored})
+            try:
+                shutil.move(str(src), str(dst))
+                restored.append(fname)
+            except Exception as e:
+                errors.append(f"{fname}: {e}")
+        else:
+            errors.append(f"{fname}: 文件不存在")
+    return jsonify({"restored": restored, "errors": errors})
+
+# ── 回收站 ──────────────────────────────────────────────────
+
+@app.route("/api/trash")
+@admin_required
+def api_trash():
+    """列出回收站文件"""
+    if not Path(TRASH_DIR).exists():
+        return jsonify({"files": [], "total_size": 0})
+    files = []
+    total_size = 0
+    for f in Path(TRASH_DIR).iterdir():
+        if f.is_file() and not f.name.startswith("."):
+            stat = f.stat()
+            files.append({
+                "name": f.name,
+                "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                "mtime_str": datetime.fromtimestamp(stat.st_mtime).strftime("%m-%d %H:%M"),
+            })
+            total_size += stat.st_size
+    files.sort(key=lambda x: x["name"])
+    return jsonify({"files": files, "total_size_mb": round(total_size / 1024 / 1024, 2)})
+
+@app.route("/api/trash/empty", methods=["POST"])
+@admin_required
+def api_trash_empty():
+    """清空回收站"""
+    if not Path(TRASH_DIR).exists():
+        return jsonify({"ok": True, "count": 0})
+    count = 0
+    for f in Path(TRASH_DIR).iterdir():
+        if f.is_file() and not f.name.startswith("."):
+            f.unlink()
+            count += 1
+    return jsonify({"ok": True, "count": count})
 
 # ── 分组 ──────────────────────────────────────────────────
 
@@ -319,6 +392,39 @@ def api_download_batch():
                      as_attachment=True,
                      download_name=f"快阅_{ts}_{len(files)}张.zip")
 
+# ── 统计 ──────────────────────────────────────────────────
+
+@app.route("/api/stats")
+@login_required
+def api_stats():
+    """首页统计概览"""
+    total = 0
+    total_size = 0
+    by_prefix = {}
+    for f in Path(IMAGE_DIR).iterdir():
+        if f.suffix.lower() not in EXTS:
+            continue
+        total += 1
+        total_size += f.stat().st_size
+        # 前缀统计
+        name = f.stem
+        for i, c in enumerate(name):
+            if c.isdigit():
+                pf = name[:i]
+                if pf and len(pf) > 2:
+                    by_prefix[pf] = by_prefix.get(pf, 0) + 1
+                break
+    trash_count = 0
+    if Path(TRASH_DIR).exists():
+        trash_count = sum(1 for f in Path(TRASH_DIR).iterdir()
+                         if f.is_file() and not f.name.startswith("."))
+    return jsonify({
+        "total": total,
+        "total_mb": round(total_size / 1024 / 1024, 1),
+        "prefixes": len(by_prefix),
+        "trash": trash_count,
+    })
+
 # ── 启动 ──────────────────────────────────────────────────
 
 def main():
@@ -345,7 +451,7 @@ def main():
     load_users()
 
     count = sum(1 for f in Path(IMAGE_DIR).iterdir() if f.suffix.lower() in EXTS)
-    print(f"快阅")
+    print(f"快阅 v2.0")
     print(f"  目录: {IMAGE_DIR}")
     print(f"  图片: {count}张")
     print(f"  地址: http://localhost:{args.port}")
